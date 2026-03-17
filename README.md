@@ -649,7 +649,7 @@ Multi-level caches must decide: if a line is in L1, does it also exist in L2 and
 
 ### Inclusive Policy
 
-![](Images/Inclsuive%20Cache%20Policy.png)
+![Inclusive Example](Images/Inclsuive%20Cache%20Policy.png)
 
 **Definition:** If a line is in L1, it is also in L2 (and L3). Lower levels are supersets of higher levels.
 
@@ -671,7 +671,7 @@ Multi-level caches must decide: if a line is in L1, does it also exist in L2 and
 
 ### Exclusive Policy
 
-![](Images/Excluisve%20Cache%20Policy.png)
+![Exclusive Example](Images/Excluisve%20Cache%20Policy.png)
 
 **Definition:** A line exists in at most one cache level at a time. On an L1 miss, the line moves from L2 to L1 (evicted from L2).
 
