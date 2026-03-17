@@ -1,4 +1,4 @@
-# CSE 398/498 — Impact of the Memory System
+# CSE 398/498 - Impact of the Memory System
 ## Class Notes
 
 ---
@@ -260,7 +260,7 @@ The results:
 |---|---|
 | **Memory Management** | Programs would need to know the physical layout; data overwriting becomes dangerous |
 | **Fragmentation** | Programs struggle to load contiguously in physical memory |
-| **Security & Isolation** | Without virtualization, any program can read/write any physical address — OS and other programs are unprotected |
+| **Security & Isolation** | Without virtualization, any program can read/write any physical address - OS and other programs are unprotected |
 | **Multitasking** | Each program assumes it starts at address 0; simultaneous execution of multiple programs becomes impossible |
 
 ### Address Translation
@@ -268,7 +268,7 @@ The results:
 Virtual addresses are translated to physical addresses through a **page table** (typically a multi-level tree structure).
 
 - On modern 64-bit systems (48-bit effective virtual address space), a **5-level page table** is common
-- The Virtual Page Number (VPN) is split into multiple parts — one per level of the page table
+- The Virtual Page Number (VPN) is split into multiple parts - one per level of the page table
 - Each level lookup is a memory access, making a full page table walk expensive
 
 **Why split the VPN into multiple parts?**
@@ -280,12 +280,12 @@ Virtual addresses are translated to physical addresses through a **page table** 
 
 A **TLB is a cache of page table entries**. It stores recently used virtual→physical address translations.
 
-**TLB Miss Penalty — "Double Punishment":**
+**TLB Miss Penalty - "Double Punishment":**
 
 1. **Increased absolute access latency:** Must traverse the in-memory page table tree (multiple memory accesses) to re-translate the address
 2. **Pipeline disruption:** Out-of-order execution cannot proceed until the translation completes; the pipeline stalls
 
-**TLB Misses vs. Cache Misses — Orthogonal or Amplifier?**
+**TLB Misses vs. Cache Misses - Orthogonal or Amplifier?**
 - They are somewhat **orthogonal**: a TLB hit doesn't prevent a cache miss, and vice versa
 - But they can **amplify** each other: code with poor spatial locality causes both TLB misses (accessing many pages) and cache misses simultaneously
 
@@ -293,7 +293,7 @@ A **TLB is a cache of page table entries**. It stores recently used virtual→ph
 - Mapping larger regions per page table entry reduces TLB pressure
 - Fewer TLB entries needed to cover the same working set
 
-**Code Example — Matrix Multiplication:**
+**Code Example - Matrix Multiplication:**
 - A naive matrix access pattern (column-major access of a row-major matrix) causes high TLB miss rates
 - Blocking (tiling) the matrix improves both TLB utilization and cache utilization simultaneously
 
@@ -304,29 +304,29 @@ A **TLB is a cache of page table entries**. It stores recently used virtual→ph
 | Miss Type | Definition | Can a Larger/Better Cache Eliminate It? |
 |---|---|---|
 | **Compulsory** (Cold) | First access ever to a cache line. Unavoidable. | No |
-| **Capacity** | Cache doesn't have enough room to hold the working set. | Yes — with a larger cache |
-| **Conflict** | Two addresses map to the same cache set; one evicts the other even though capacity exists. | Yes — with higher associativity |
-| **Coherence** | A valid cache line is invalidated due to a write by another core. | No — inherent in multicore systems |
+| **Capacity** | Cache doesn't have enough room to hold the working set. | Yes - with a larger cache |
+| **Conflict** | Two addresses map to the same cache set; one evicts the other even though capacity exists. | Yes - with higher associativity |
+| **Coherence** | A valid cache line is invalidated due to a write by another core. | No - inherent in multicore systems |
 
 ### Compulsory Miss
 - The inevitable "first access" cost
 - No matter how perfectly the cache is designed, the first access to any new data will miss
 - Prefetching can help hide (but not eliminate) compulsory misses
 
-### Capacity vs. Conflict Miss — Distinguishing Them
+### Capacity vs. Conflict Miss - Distinguishing Them
 
 > **Key diagnostic question:** If you converted the cache to a fully associative cache with the same total capacity, would this access still miss?
 > - **Yes** → Capacity miss
 > - **No** → Conflict miss (the set was full, not the whole cache)
 
-**Example — Direct-Mapped Cache, Capacity 4:**
+**Example - Direct-Mapped Cache, Capacity 4:**
 ```
 Access pattern: A B A B C D C D
 
 Direct-Mapped (DM):
   A → miss (cold)
   B → miss (cold)
-  A → miss (CONFLICT — A and B map to same set)
+  A → miss (CONFLICT - A and B map to same set)
   B → miss (CONFLICT)
   C → miss (cold)
   D → miss (cold)
@@ -344,7 +344,7 @@ Fully Associative (FA), same capacity:
   D → HIT
 ```
 
-**Another example — Capacity miss:**
+**Another example - Capacity miss:**
 ```
 Access pattern: A B C D E A B C D E  (cache capacity = 4)
 
@@ -359,6 +359,8 @@ FA cache misses on second A even though it's fully associative → Capacity miss
 
 ## 5. Efficient Software Design Paradigms
 
+This section details a common code optimization and a design paradigm focused on leveraging it maxmimally.
+
 ### The Problem: OOP Doesn't Always Fit High-Performance Code
 
 Object-Oriented Programming designs types around **a single object**. High-performance code cares about **how many objects are processed in the same loop** and whether their data is contiguous in memory.
@@ -369,7 +371,7 @@ Object-Oriented Programming designs types around **a single object**. High-perfo
 
 **Scenario:** Design a CPU-side particle system (thousands of particles per frame). Each particle has: `position (Vec3)`, `velocity (Vec3)`, `mass (float)`.
 
-**Array of Structures (AoS) — naive OOP approach:**
+**Array of Structures (AoS) - naive OOP approach:**
 ```cpp
 struct Particle {
     Vec3 position;
@@ -385,7 +387,7 @@ Particle particles[N];
 - **High stride**: the stride between `velocity` fields = `sizeof(Particle)`
 - Most of each cache line is wasted → poor cache utilization
 
-**Structure of Arrays (SoA) — data-oriented approach:**
+**Structure of Arrays (SoA) - data-oriented approach:**
 ```cpp
 struct ParticleSystem {
     Vec3 positions[N];
@@ -395,17 +397,19 @@ struct ParticleSystem {
 ```
 
 - Velocity-update loop reads `velocities` array sequentially → stride = `sizeof(Vec3)`
-- **Cache lines are fully utilized** — no wasted fields loaded
+- **Cache lines are fully utilized** - no wasted fields loaded
 
-> **Professor's Note:** SoA is great for performance, but harder to use naturally in OOP. Optimization can become a mess with hard-to-follow code — ECS is a paradigm designed to manage this complexity.
+![Stride Visualization](Images/SoA%20vs%20Aos.png)
+
+> **Note:** SoA is great for performance, but harder to use naturally in OOP. Optimization can become a mess with hard-to-follow code - ECS is a paradigm designed specifically to exploit SoA.
 
 ---
 
 ### Data-Oriented Design (DOD)
 
 - Prioritizes **data layout and access patterns** over object encapsulation
-- Somewhat incompatible with OOP by design (per Wikipedia)
-- Emerged from game development; now used in HFT, scientific simulation, big data processing
+- Somewhat incompatible with OOP by design, though debatable.
+- Emerged from game development; now used in HFT, scientific simulation, big data processing, and more.
 
 ---
 
@@ -452,7 +456,7 @@ In a multicore system, multiple cores each have their own private L1 and L2 cach
 > **Important distinction:**
 > - **Coherence** = global total order on stores to a **single cache line**
 > - **Consistency** = ordering across **multiple cache lines** (a broader, harder problem)
-> - A globally totally ordered set of stores does NOT mean the program is race-free — it just bounds how dangerous a race can be
+> - A globally totally ordered set of stores does NOT mean the program is race-free - it just bounds how dangerous a race can be
 > - Read-read sharing is always safe; coherence only concerns stores
 
 > **Snooping vs. Directory Protocols:**
@@ -475,18 +479,18 @@ Three states for each cache line, per cache:
 
 | Current State | Event | Next State | Action |
 |---|---|---|---|
-| M | Local Read (LR) | M | — |
-| M | Local Write (LW) | M | — |
+| M | Local Read (LR) | M | - |
+| M | Local Write (LW) | M | - |
 | M | Remote Read (RR) | S | Supply data; writeback to memory |
 | M | Remote Write (RW) | I | Invalidate |
-| S | Local Read (LR) | S | — |
+| S | Local Read (LR) | S | - |
 | S | Local Write (LW) | M | Broadcast invalidation to other sharers |
-| S | Remote Read (RR) | S | — |
+| S | Remote Read (RR) | S | - |
 | S | Remote Write (RW) | I | Invalidate |
 | I | Local Read (LR) | S | Fetch from memory or another cache |
 | I | Local Write (LW) | M | Fetch and take exclusive ownership |
-| I | Remote Read (RR) | I | — |
-| I | Remote Write (RW) | I | — |
+| I | Remote Read (RR) | I | - |
+| I | Remote Write (RW) | I | - |
 
 **Abbreviations:**
 - LR = Local Read
@@ -526,20 +530,20 @@ MESI adds the **Exclusive (E)** state to MSI.
 
 | State | Meaning |
 |---|---|
-| M | Modified — only valid copy, dirty (differs from main memory) |
-| **E (Exclusive)** | **Only clean copy** — identical to main memory, but no other cache has a copy |
-| S | Shared — valid, clean, but other caches may also have it |
+| M | Modified - only valid copy, dirty (differs from main memory) |
+| **E (Exclusive)** | **Only clean copy** - identical to main memory, but no other cache has a copy |
+| S | Shared - valid, clean, but other caches may also have it |
 | I | Invalid |
 
 **Why E improves over MSI:**
 
-In MSI, when you have the only copy of a clean line, it's in **S** — but the system doesn't know it's the only copy. To write to it, you must broadcast an invalidation to all potential sharers (even though there are none).
+In MSI, when you have the only copy of a clean line, it's in **S** - but the system doesn't know it's the only copy. To write to it, you must broadcast an invalidation to all potential sharers (even though there are none).
 
-With E, the system knows explicitly: "this is the only copy, and it's clean." An **E→M transition** is silent — no invalidation broadcast needed.
+With E, the system knows explicitly: "this is the only copy, and it's clean." An **E→M transition** is silent - no invalidation broadcast needed.
 
-> **Prof. Spear:** The E→M transition is really cheap. There's a subtlety here: without E, you can have a **slowdown on a write that isn't even a cache miss** — you're just waiting for an ACK to an unnecessary invalidation broadcast. E eliminates that.
+> **Prof. Spear:** The E→M transition is really cheap. There's a subtlety here: without E, you can have a **slowdown on a write that isn't even a cache miss** - you're just waiting for an ACK to an unnecessary invalidation broadcast. E eliminates that.
 
-> **Subtle point:** An S-state line might effectively be the only copy (other caches may have silently evicted it for capacity), but the system doesn't know that — so it's treated as S, not E. This is a "silent E" situation.
+> **Subtle point:** An S-state line might effectively be the only copy (other caches may have silently evicted it for capacity), but the system doesn't know that - so it's treated as S, not E. This is a "silent E" situation.
 
 ---
 
@@ -562,7 +566,7 @@ When Core B reads a line that Core A has in **M**, Core A must write back the di
 |---|---|
 | Valid? | Yes |
 | Matches main memory? | No (dirty) |
-| Only copy? | No — other caches have S-state copies |
+| Only copy? | No - other caches have S-state copies |
 | Can serve read requests? | Yes, directly |
 | Must writeback before eviction? | Yes |
 
@@ -584,14 +588,14 @@ When multiple cores hold a line in **S** and a new core requests a read, who res
 
 **F (Forward) state:**
 - Clean data, multiple copies exist (other caches are in S)
-- Exactly **one cache** is designated as F — it is responsible for **forwarding** data to new requesters
+- Exactly **one cache** is designated as F - it is responsible for **forwarding** data to new requesters
 - The F-holder responds to read requests directly, rather than memory
 
 **F state transitions:**
 - When the F-holder forwards data, the receiver becomes the new F-holder (E→F, F→S, receiver→F)
 - Why? **Temporal locality**: the most recent requester is most likely to be needed next
 
-> **Prof. Spear:** The F state decision (which S becomes F) exploits temporal locality — the core that most recently received data is the best forwarder.
+> **Prof. Spear:** The F state decision (which S becomes F) exploits temporal locality - the core that most recently received data is the best forwarder.
 
 ---
 
@@ -599,7 +603,7 @@ When multiple cores hold a line in **S** and a new core requests a read, who res
 
 | Protocol | Added State | Problem Solved |
 |---|---|---|
-| MSI | — | Baseline coherence |
+| MSI | - | Baseline coherence |
 | MESI | Exclusive (E) | Eliminates unnecessary invalidation broadcasts for single-copy writes |
 | MOESI | Owned (O) | Enables direct cache-to-cache transfer of dirty data |
 | MESIF | Forward (F) | Designates a single forwarder among S-state caches to reduce memory traffic |
@@ -614,7 +618,7 @@ When multiple cores hold a line in **S** and a new core requests a read, who res
 3. Core B's copy is marked **I (Invalid)**
 4. Core B later reads X → **Cache miss** (coherence miss) → must fetch updated value from Core A or main memory
 
-This is the fourth "C" miss — unavoidable in shared-memory multicore systems.
+This is the fourth "C" miss - unavoidable in shared-memory multicore systems.
 
 ---
 
@@ -639,7 +643,7 @@ Multi-level caches must decide: if a line is in L1, does it also exist in L2 and
 |---|---|
 | **Inclusive** | All blocks in a higher-level cache (L1) are also present in the lower-level cache (L3) |
 | **Exclusive** | A block exists in exactly one level at a time |
-| **NINE** | Neither Inclusive Nor Exclusive — adaptive/nondeterministic |
+| **NINE** | Neither Inclusive Nor Exclusive - adaptive/nondeterministic |
 
 ---
 
@@ -648,7 +652,7 @@ Multi-level caches must decide: if a line is in L1, does it also exist in L2 and
 **Definition:** If a line is in L1, it is also in L2 (and L3). Lower levels are supersets of higher levels.
 
 **Advantages:**
-- **Cheap refills:** When bringing a line back to L1, it must already be in L2/L3 — no need to fetch from DRAM
+- **Cheap refills:** When bringing a line back to L1, it must already be in L2/L3 - no need to fetch from DRAM
 - **L3 as coherence directory:** L3 always knows which lines are in which L1 caches → coherence lookups stop at L3, never need to broadcast to all L1s
 
 **Disadvantages:**
@@ -658,7 +662,7 @@ Multi-level caches must decide: if a line is in L1, does it also exist in L2 and
 - **Associativity constraints:** L3's associativity policy must accommodate L1 contents
 
 > **Why would we evict from L2 before L1 in an inclusive cache?**
-> - L3 can trigger an invalidation of a line that is hot in L1 (e.g., because L3's LRU thinks it's cold — but L3 doesn't receive L1 hit signals)
+> - L3 can trigger an invalidation of a line that is hot in L1 (e.g., because L3's LRU thinks it's cold - but L3 doesn't receive L1 hit signals)
 > - Differing replacement policies between L1 and L3 can cause this mismatch
 
 ---
@@ -668,12 +672,12 @@ Multi-level caches must decide: if a line is in L1, does it also exist in L2 and
 **Definition:** A line exists in at most one cache level at a time. On an L1 miss, the line moves from L2 to L1 (evicted from L2).
 
 **Advantages:**
-- **Maximum effective capacity:** No duplication across levels — total cache capacity = sum of all levels
+- **Maximum effective capacity:** No duplication across levels - total cache capacity = sum of all levels
 - **No back invalidations:** L3 evictions don't invalidate L1 lines
 - **Better multicore scaling** than inclusive (L3 capacity isn't wasted on duplicates)
 
 **Disadvantages:**
-- **Poor coherence support:** L3 no longer acts as a directory — a core must check all other cores' private caches to find a line
+- **Poor coherence support:** L3 no longer acts as a directory - a core must check all other cores' private caches to find a line
 - **Forces uniform cache line size across all levels:** Suboptimal; different levels may benefit from different line sizes
 - **Data transfer on eviction of S-state data:** Evicting a shared line from L1 requires moving it down to L2
 - **Costlier snooping** due to lack of directory
@@ -689,10 +693,10 @@ Multi-level caches must decide: if a line is in L1, does it also exist in L2 and
 **How NINE works:**
 - NINE is NOT simply "fetch inclusively, evict independently"
 - NINE makes decisions based on **microarchitectural state**: recent access history, prefetch hints, coherence hints, etc.
-- **Nondeterministic:** A fetch to L1 may result in any combination of L2 and L3 caching the block — the outcome depends on internal microarchitectural state that software cannot observe
-- More complex but more powerful — allows the CPU to optimize for the observed workload dynamically
+- **Nondeterministic:** A fetch to L1 may result in any combination of L2 and L3 caching the block - the outcome depends on internal microarchitectural state that software cannot observe
+- More complex but more powerful - allows the CPU to optimize for the observed workload dynamically
 
-> **Prof. Spear:** The nondeterminism of NINE is real — when Intel went inclusive and AMD went exclusive, both found that strict policies were leaving performance on the table. NINE gives the hardware freedom to adapt.
+> **Prof. Spear:** The nondeterminism of NINE is real - when Intel went inclusive and AMD went exclusive, both found that strict policies were leaving performance on the table. NINE gives the hardware freedom to adapt.
 
 ---
 
@@ -700,7 +704,7 @@ Multi-level caches must decide: if a line is in L1, does it also exist in L2 and
 
 ### On Particle Systems and SoA
 - High stride through AoS layout causes non-stop cache line fetches when only one field per struct is needed
-- ECS is a "nice way to work with this" — avoids deep OOP hierarchies; composition over inheritance
+- ECS is a "nice way to work with this" - avoids deep OOP hierarchies; composition over inheritance
 
 ### On Cache Coherence Protocol Presentation
 - Worth defining what "coherence" actually means before the protocols
@@ -711,12 +715,12 @@ Multi-level caches must decide: if a line is in L1, does it also exist in L2 and
 - Think about NUMA: how does physical memory distance affect coherence message latency?
 
 ### On Cache Miss Taxonomy
-- LLC misses during warmup are **compulsory** — not a big deal (few, and unavoidable)
+- LLC misses during warmup are **compulsory** - not a big deal (few, and unavoidable)
 - IPC drops sharply and proportionally when L2/L3 miss rates increase → use `perf` to measure
-- Can a programmer distinguish capacity vs. conflict misses at the code level? (Open question — varies data layout/alignment to shift mapping)
+- Can a programmer distinguish capacity vs. conflict misses at the code level? (Open question - varies data layout/alignment to shift mapping)
 
 ### On TLBs
-- TLB is a cache of page table entries — miss cost = traversal through the in-memory page table tree
+- TLB is a cache of page table entries - miss cost = traversal through the in-memory page table tree
 - TLB misses and cache misses: more amplifier than orthogonal (poor spatial locality → both)
 - Huge page support reduces TLB pressure; worth understanding why
 
@@ -726,22 +730,22 @@ Multi-level caches must decide: if a line is in L1, does it also exist in L2 and
   - L2 invalidations from L1 i-cache
   - Differing replacement policies (L1 hit signals don't propagate to L3's LRU)
 - Exclusive: extra data transfer cost when evicting S-state lines; uniform line size requirement
-- NINE: nondeterministic behavior — Intel went inclusive pre-2015, AMD exclusive pre-2017, both switched to adaptive
+- NINE: nondeterministic behavior - Intel went inclusive pre-2015, AMD exclusive pre-2017, both switched to adaptive
 
 ### On MESI
-- E→M transition is "really cheap" — avoids broadcast; no bus ACK needed
-- A wait-for-ACK on a write (without E) is a subtle slowdown that is NOT a cache miss — MESI's E state eliminates it
+- E→M transition is "really cheap" - avoids broadcast; no bus ACK needed
+- A wait-for-ACK on a write (without E) is a subtle slowdown that is NOT a cache miss - MESI's E state eliminates it
 - **Dirty data propagation:** Can a line be M at L3 while S in all L1s? (Important for hierarchical coherence understanding)
 
 ### On MOESI
-- Defers writeback of dirty lines — enables direct cache-to-cache transfer
+- Defers writeback of dirty lines - enables direct cache-to-cache transfer
 - Implies **write-back** cache (not write-through)
 - Problem: Do we avoid evicting O lines even when LRU? What if we're genuinely done with the data?
 
 ### On MESIF
-- The F-holder decision exploits temporal locality — most recent requester is most likely to forward next
+- The F-holder decision exploits temporal locality - most recent requester is most likely to forward next
 - Transfer of F responsibility: E→F, F→S, receiver becomes new F
 
 ---
 
-*Notes compiled from course slides (CSE 398/498 — Impact of the Memory System) and instructor feedback emails (Prof. Michael Spear, Lehigh University).*
+*Notes compiled from course slides (CSE 398/498 - Impact of the Memory System) and instructor feedback emails (Prof. Michael Spear, Lehigh University).*
