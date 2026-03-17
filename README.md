@@ -133,7 +133,7 @@ L1, L2, and L3 are all built on **Static Random Access Memory (SRAM)**.
 
 The following program is meant to trigger different levels of cache misses and compare performance.
 
-'''cpp
+```cpp
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -240,7 +240,7 @@ int main() {
     return (int)g_sink;
 }
 
-'''
+```
 
 The results:
 | Cache Level | Details |
