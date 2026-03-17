@@ -36,14 +36,18 @@ A computer's core consists of the CPU and RAM, connected through the **Memory Bu
 - An 800 MHz processor connected to a 100 MHz memory bus
 - For every memory access, **8 CPU clock cycles** elapse
 - If the CPU is stalling on a memory access, **7 of those 8 cycles are wasted**
-- At scale (pipelining, out-of-order execution), the actual slowdown is **much worse than 8×** — see performance gap charts
+- At scale (pipelining, out-of-order execution), the actual slowdown is **much worse than 8×**.
+
+![Cpu-Memory Performance Gap](Images/cpu_vs_memory.png)
 
 ### Solutions to Shrink the Gap
+
+There are several ideas modern processors leverage to reduce the impact of this gap. 
 
 | Solution | Notes |
 |---|---|
 | **Caching** | Primary focus of this module |
-| CPU-Level Parallelism | Pipelining, out-of-order execution |
+| CPU-Level Parallelism | Doing multiple operations in the CPU in parallel. EX: Pipelining |
 | Prefetching | Anticipating future memory accesses |
 | Memory-Level Parallelism | Overlapping multiple memory requests |
 | **TLBs** | Secondary focus of this module |
@@ -58,28 +62,28 @@ A computer's core consists of the CPU and RAM, connected through the **Memory Bu
 
 ```
 Registers      →  0 – <1 cycles
-L1 Cache       →  1 – 5 cycles       | ~192 KB instructions + 128 KB data
-L2 Cache       →  5 – 15 cycles      | 1 – 4 MB per core
+L1 Cache       →  1 – 5 cycles       | ~192 KB instructions + 128 KB data (per core)
+L2 Cache       →  5 – 15 cycles      | 1 – 4 MB (per core)
 L3 Cache       →  20 – 60+ cycles    | Varies; shared across cores
 Main Memory    →  150+ cycles        | GBs to TBs
 Storage (Disk) →  Millions of cycles |
 ```
 
-> Note: Access times are estimates and vary per machine. Use `lscpu` to inspect your machine's cache configuration.
+> Note: Access times are estimates and vary per machine. Try Using `lscpu` on linux to inspect your machine's cache configuration.
 
 ---
 
-### SRAM — The Physical Building Block of CPU Caches
+### SRAM - The Physical Building Block of CPU Caches
 
 L1, L2, and L3 are all built on **Static Random Access Memory (SRAM)**.
 
 | Property | Details |
 |---|---|
-| **Speed** | Data readable in just a few CPU cycles — no waiting for intermediate states |
+| **Speed** | Data readable in just a few CPU cycles - no waiting for intermediate states |
 | **Stability** | No refresh required; retains data as long as power is on |
 | **Cost & Size** | Physically large (~6 transistors per bit vs. 1 transistor + capacitor for DRAM); expensive |
 | **Power** | Consumes more power than DRAM |
-| **Bandwidth** | Multi-ported: different SRAM banks can process reads/writes in parallel — critical for cache bandwidth |
+| **Bandwidth** | Multi-ported: different SRAM banks can process reads/writes in parallel - critical for cache bandwidth |
 
 **Contrast with DRAM:**
 - DRAM: 1 transistor + 1 capacitor per bit → cheaper, denser, but leaks charge and must be **refreshed thousands of times per second**
@@ -124,6 +128,129 @@ L1, L2, and L3 are all built on **Static Random Access Memory (SRAM)**.
   - Cores use L3 to agree upon the state of shared data
 
 ---
+
+### Cache Demo
+
+The following program is meant to trigger different levels of cache misses and compare performance.
+
+'''cpp
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <vector>
+#include <algorithm>
+
+
+
+static volatile std::uint64_t g_sink = 0;
+
+// Touch one 64B cache line per step (typical cache line size on x86/ARM64).
+constexpr std::size_t kLine = 64;
+// Reads one byte from each cache line, accumulating into g_sink.
+static inline void touch_lines(const std::uint8_t* data, std::size_t bytes) {
+    std::uint64_t sum = 0;
+    for (std::size_t i = 0; i < bytes; i += kLine) {
+        sum += data[i];
+    }
+    g_sink += sum;
+}
+
+
+void hit_L1(std::size_t iters = 1600000) {
+    const std::size_t bytes = 16 * 1024; // 16KB
+    std::uint8_t* buf = static_cast<std::uint8_t*>(
+        std::aligned_alloc(64, bytes)
+    );
+    std::memset(buf, 1, bytes);
+
+    // Warm once.
+    touch_lines(buf, bytes);
+
+    for (std::size_t t = 0; t < iters; ++t) {
+        touch_lines(buf, bytes);
+    }
+    std::free(buf);
+}
+
+void miss_L1_hit_L2(std::size_t iters = 100000) {
+    const std::size_t bytes = 256 * 1024; // 256KB
+    std::uint8_t* buf = static_cast<std::uint8_t*>(
+        std::aligned_alloc(64, bytes)
+    );
+    std::memset(buf, 2, bytes);
+
+    // Warm once.
+    touch_lines(buf, bytes);
+
+    for (std::size_t t = 0; t < iters; ++t) {
+        touch_lines(buf, bytes);
+    }
+    std::free(buf);
+
+}
+
+
+void miss_L2_hit_L3(std::size_t iters = 3200) {
+    const std::size_t bytes = 8 * 1024 * 1024; // 8MB
+    std::uint8_t* buf = static_cast<std::uint8_t*>(
+        std::aligned_alloc(64, bytes)
+    );
+    std::memset(buf, 3, bytes);
+
+    // Warm once.
+    touch_lines(buf, bytes);
+
+
+    for (std::size_t t = 0; t < iters; ++t) {
+        touch_lines(buf, bytes);
+    }
+    std::free(buf);
+
+}
+
+
+void miss_L3_go_DRAM(std::size_t iters = 100) {
+    const std::size_t bytes = 256ULL * 1024 * 1024; // 256MB
+    std::uint8_t* buf = static_cast<std::uint8_t*>(
+        std::aligned_alloc(64, bytes)
+    );
+    if (!buf) return;
+    std::memset(buf, 4, bytes);
+
+    // Warm once.
+    touch_lines(buf, bytes);
+
+    // Repeated passes: should be dominated by DRAM/LLC misses.
+    for (std::size_t t = 0; t < iters; ++t) {
+        touch_lines(buf, bytes);
+    }
+    std::free(buf);
+}
+
+
+/*
+g++ -O3 -std=c++17 CacheDemo.cpp -o CacheDemo 
+perf stat -e cycles,instructions,L1-dcache-loads,L1-dcache-load-misses,LLC-loads,LLC-load-misses,dTLB-loads,dTLB-load-misses,cache-references,cache-misses CacheDemo
+ */
+int main() {
+    //hit_L1();
+    //miss_L1_hit_L2();
+    //miss_L2_hit_L3();
+    miss_L3_go_DRAM();
+    return (int)g_sink;
+}
+
+'''
+
+The results:
+| Cache Level | Details |
+|---|---|
+|Hit L1| ![](Images/HitL1.png)|
+|Miss L1|![](Images/MissL1.jpg)|
+|Miss L2|![](Images/MissL2.png)|
+|Miss L3|![](Images/MissL3.png)|
+
+
 
 ## 3. Virtual Memory & TLBs
 
